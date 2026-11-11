@@ -1,0 +1,149 @@
+<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ตรวจรูปเล่มโครงงาน | วิทยาลัยเทคนิคนางรอง</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--tx:#1b2a41;--mu:#5d6b82;--bd:#d8e0ec;--pr:#1d4ed8;--er:#c62828;--wa:#b26a00;--ok:#2e7d32}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1624;--card:#182236;--tx:#e8eef9;--mu:#9fb0cc;--bd:#2b3a57;--pr:#6b9bff;--er:#ff7b72;--wa:#f0b04a;--ok:#5fd07a}}
+*{box-sizing:border-box}body{margin:0;font:17px/1.55 Sarabun,'TH Sarabun New',sans-serif;background:var(--bg);color:var(--tx)}
+header{background:var(--pr);color:#fff;padding:12px 18px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}header b{font-size:19px}header button{background:#ffffff26;color:#fff}
+main{max-width:1000px;margin:0 auto;padding:16px}.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;margin-bottom:14px}
+h2{margin:0 0 10px;font-size:19px}input,select,button{font:inherit;padding:8px 12px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--tx)}
+input{width:100%;margin:3px 0 10px}button{cursor:pointer;background:var(--pr);color:#fff;border:0}button.g{background:transparent;color:var(--pr);border:1px solid var(--pr)}
+table{width:100%;border-collapse:collapse}td,th{padding:7px 8px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:top}th{color:var(--mu);font-weight:600}
+.b{display:inline-block;padding:1px 10px;border-radius:99px;font-size:15px;font-weight:600;border:1px solid}.e{color:var(--er)}.w{color:var(--wa)}.p{color:var(--ok)}.m{color:var(--mu)}
+.drop{border:2px dashed var(--pr);border-radius:12px;padding:22px;text-align:center;color:var(--mu)}.drop.on{background:#1d4ed81a}
+.it{padding:8px 10px;margin:6px 0;border-radius:8px;border-left:5px solid}.it.error{border-color:var(--er);background:#c6282812}.it.warning{border-color:var(--wa);background:#b26a0014}.it.pass{border-color:var(--ok);background:#2e7d3210}
+.fix{font-size:15px;color:var(--mu)}.big{font-size:22px;font-weight:700}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:640px){.row{grid-template-columns:1fr}}
+.msg{padding:10px;border-radius:8px;margin:8px 0}.msg.er{background:#c6282820;color:var(--er)}
+</style></head><body>
+<header><b>📘 ตรวจรูปเล่มโครงงานเบื้องต้น <small style="font-weight:400">· วิทยาลัยเทคนิคนางรอง</small></b><span id="who"></span></header>
+<main id="app"></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+const SB='https://wlvhiyrsvaxfzkpitjct.supabase.co',KEY='sb_publishable_ZSq81HJc62qj1rk49I3LoQ_TtYp9UpF';
+const DOCS={cover:'01 หน้าปก',copyright:'02 ใบลิขสิทธิ์',cert:'03 ใบรับรองโครงการ',abstract:'04 บทคัดย่อ',ack:'05 กิตติกรรมประกาศ',toc:'06 สารบัญ',ch1:'07 บทที่ 1',ch2:'07 บทที่ 2',ch3:'07 บทที่ 3',ch4:'07 บทที่ 4',ch5:'07 บทที่ 5',bib:'08 บรรณานุกรม',appendix:'09 ภาคผนวก',bio:'10 ประวัติคณะผู้จัดทำ'};
+const REQUIRED=['cover','copyright','cert','abstract','ack','toc','ch1','ch2','ch3','ch4','ch5','bib','appendix','bio'];
+const FILE_RE=[[/^01_หน้าปก\.docx$/,'cover'],[/^02_ใบลิขสิทธิ์\.docx$/,'copyright'],[/^03_ใบรับรองโครงการ\.docx$/,'cert'],[/^04_บทคัดย่อ\.docx$/,'abstract'],[/^05_กิตติกรรมประกาศ\.docx$/,'ack'],[/^06_สารบัญ\.docx$/,'toc'],[/^07_บทที่_([1-5])\.docx$/,'ch'],[/^08_บรรณานุกรม\.docx$/,'bib'],[/^09_ภาคผนวก(_[กขคง])?\.docx$/,'appendix'],[/^10_ประวัติคณะผู้จัดทำ\.docx$/,'bio']];
+function detectDoc(name){name=name.normalize('NFC');for(const[r,k]of FILE_RE){const m=name.match(r);if(m)return k==='ch'?'ch'+m[1]:k}return null}
+// required headings: [code,label,regex(on text without spaces),severity,fix]
+const REQ={
+cover:[['COV1','ชื่อโครงงานภาษาไทย/อังกฤษ (ปกนอก+ปกใน)',/โครงการนี้เป็นส่วนหนึ่งของการศึกษาตามหลักสูตร/g,'error','ต้องมีข้อความ "โครงการนี้เป็นส่วนหนึ่งของการศึกษาตามหลักสูตร" ทั้งปกนอกและปกใน (2 ครั้ง)',2],['COV2','ประกาศนียบัตรวิชาชีพ/วิทยาลัย/ปีการศึกษา',/ประกาศนียบัตร.*วิทยาลัยเทคนิคนางรอง.*ปีการศึกษา/s,'error','ใส่ระดับ วิทยาลัย และปีการศึกษาให้ครบตามแม่แบบ'],['COV3','ลิขสิทธิ์ของวิทยาลัยเทคนิคนางรอง',/ลิขสิทธิ์ของวิทยาลัยเทคนิคนางรอง/,'error','เพิ่มบรรทัดลิขสิทธิ์ท้ายปก']],
+copyright:[['CPR1','ลิขสิทธิ์เป็นของวิทยาลัยเทคนิคนางรอง',/ลิขสิทธิ์เป็นของวิทยาลัยเทคนิคนางรอง/,'error','เพิ่มหัวข้อลิขสิทธิ์'],['CPR2','คณะผู้จัดทำ/ครูที่ปรึกษา',/คณะผู้จัดทำโครงการ.*ครูที่ปรึกษาโครงการ/s,'error','ใส่ชื่อผู้จัดทำและครูที่ปรึกษา'],['CPR3','ปรัชญา / ปีที่จัดพิมพ์',/ปรัชญา.*ปีที่จัดพิมพ์/s,'warning','ใส่ปรัชญาวิทยาลัยและปีที่จัดพิมพ์']],
+cert:[['CRT1','หัวข้อ ใบรับรองโครงการ',/ใบรับรองโครงการ/,'error','ใส่หัวข้อใบรับรองโครงการ'],['CRT2','ช่องลงนามกรรมการ',/ประธานกรรมการ.*กรรมการและเลขานุการ/s,'error','ใส่ช่องประธานกรรมการ กรรมการ และกรรมการและเลขานุการ'],['CRT3','รองผู้อำนวยการฝ่ายวิชาการ',/รองผู้อำนวยการฝ่ายวิชาการ/,'error','ใส่ช่องรองผู้อำนวยการฝ่ายวิชาการ']],
+abstract:[['ABS1','ชื่อเรื่อง/ชื่อผู้จัดทำ/ครูที่ปรึกษา',/ชื่อเรื่อง.*ชื่อผู้จัดทำ.*ครูที่ปรึกษา/s,'error','ใส่ข้อมูลหัวบทคัดย่อให้ครบ'],['ABS2','ประเภทวิชา/สาขาวิชา/ปีการศึกษา',/ประเภทวิชา.*สาขาวิชา.*ปีการศึกษา/s,'error','ใส่ประเภทวิชา สาขาวิชา ปีการศึกษา'],['ABS3','หัวข้อ บทคัดย่อ + ผลความพึงพอใจ',/บทคัดย่อ.*ความพึงพอใจ/s,'error','เนื้อหาบทคัดย่อต้องสรุปวัตถุประสงค์ วิธีการ และผลความพึงพอใจ']],
+ack:[['ACK1','หัวข้อ กิตติกรรมประกาศ',/กิตติกรรมประกาศ/,'error','ใส่หัวข้อกิตติกรรมประกาศ'],['ACK2','ขอบคุณครูที่ปรึกษา',/(อาจารย์|ครู)/,'warning','ควรกล่าวขอบคุณครูที่ปรึกษา']],
+toc:[['TOC1','สารบัญ / สารบัญตาราง / สารบัญภาพ',/สารบัญ.*สารบัญตาราง.*สารบัญภาพ/s,'error','ต้องมีสารบัญ สารบัญตาราง และสารบัญภาพ'],['TOC2','รายการบทที่ 1–5',/บทที่1.*บทที่2.*บทที่3.*บทที่4.*บทที่5/s,'error','สารบัญต้องมีบทที่ 1–5'],['TOC3','บรรณานุกรม/ภาคผนวก/ประวัติ',/บรรณานุกรม.*ภาคผนวก.*ประวัติ/s,'error','สารบัญต้องมี บรรณานุกรม ภาคผนวก และประวัติผู้จัดทำ']],
+ch1:[['C1H1','1.1 ความเป็นมาและความสำคัญ',/ความเป็นมา/,'error','เพิ่มหัวข้อ ความเป็นมาและความสำคัญ'],['C1H2','1.2 วัตถุประสงค์',/วัตถุประสงค์/,'error','เพิ่มหัวข้อ วัตถุประสงค์'],['C1H3','1.3 สมมติฐาน (ถ้าครูกำหนด)',/สมมติฐาน/,'warning','แม่แบบมีหัวข้อสมมติฐานการวิจัย'],['C1H4','ขอบเขตของโครงการ',/ขอบเขต/,'error','เพิ่มหัวข้อ ขอบเขต'],['C1H5','ประโยชน์ที่คาดว่าจะได้รับ',/ประโยชน์ที่คาดว่าจะได้รับ/,'error','เพิ่มหัวข้อ ประโยชน์ที่คาดว่าจะได้รับ'],['C1H6','นิยามศัพท์',/นิยามศัพท์/,'error','เพิ่มหัวข้อ นิยามศัพท์เฉพาะ']],
+ch2:[['C2H1','หัวข้อทฤษฎี (2.x)',/2\.1/,'error','ต้องมีหัวข้อทฤษฎีอย่างน้อย 2.1'],['C2H2','ทฤษฎีความพึงพอใจ',/ความพึงพอใจ/,'warning','ควรมีทฤษฎีความพึงพอใจ'],['C2H3','งานวิจัยที่เกี่ยวข้อง',/งานวิจัยที่เกี่ยวข้อง/,'error','เพิ่มหัวข้อ งานวิจัยที่เกี่ยวข้อง']],
+ch3:[['C3H1','3.1 การสร้าง/พัฒนาชิ้นงาน',/3\.1.*(สร้าง|พัฒนา|ผลิต)/,'error','เพิ่มหัวข้อ 3.1'],['C3H2','ประชากรและกลุ่มตัวอย่าง',/ประชากรและกลุ่มตัวอย่าง/,'error','เพิ่มหัวข้อ ประชากรและกลุ่มตัวอย่าง'],['C3H3','เครื่องมือที่ใช้ในการวิจัย',/เครื่องมือที่ใช้ในการวิจัย/,'error','เพิ่มหัวข้อ เครื่องมือที่ใช้ในการวิจัย'],['C3H4','วิธีการเก็บรวบรวมข้อมูล',/วิธีการเก็บรวบรวมข้อมูล/,'error','เพิ่มหัวข้อ วิธีการเก็บรวบรวมข้อมูล'],['C3H5','การวิเคราะห์ข้อมูล',/การวิเคราะห์ข้อมูล/,'error','เพิ่มหัวข้อ การวิเคราะห์ข้อมูล'],['C3H6','ผู้เชี่ยวชาญ 3 ท่าน',/ผู้เชี่ยวชาญ/,'warning','ต้องนำแบบสอบถามเสนอผู้เชี่ยวชาญ 3 ท่าน']],
+ch4:[['C4H1','4.1 ผลการสร้างชิ้นงาน',/4\.1/,'error','เพิ่มหัวข้อ 4.1 ผลของการสร้างชิ้นงาน'],['C4H2','4.2 ผลของการวิจัย',/4\.2.*ผลของการวิจัย/,'error','เพิ่มหัวข้อ 4.2 ผลของการวิจัย'],['C4H3','เกณฑ์แปลผล 4.50–5.00',/4\.50[–-]5\.00/,'warning','ใส่ตารางเกณฑ์แปลผลค่าเฉลี่ย (4.50–5.00 มากที่สุด ...)'],['C4H4','อ้างอิงตารางในเนื้อหา "จากตารางที่"',/จากตารางที่/,'warning','ต้องมีประโยคอธิบายผลใต้ตาราง เช่น "จากตารางที่ 4.1 พบว่า..."']],
+ch5:[['C5H1','5.1 สรุปผล',/5\.1.*สรุปผล/,'error','เพิ่มหัวข้อ 5.1 สรุปผล'],['C5H2','5.2 อภิปรายผล',/5\.2.*อภิปรายผล/,'error','เพิ่มหัวข้อ 5.2 อภิปรายผล'],['C5H3','5.3 ข้อเสนอแนะ',/5\.3.*ข้อเสนอแนะ/,'error','เพิ่มหัวข้อ 5.3 ข้อเสนอแนะ']],
+bib:[['BIB1','หัวข้อ บรรณานุกรม',/บรรณานุกรม/,'error','ใส่หัวข้อบรรณานุกรม']],
+appendix:[['APX1','หัวข้อ ภาคผนวก',/ภาคผนวก/,'error','ใส่หัวข้อภาคผนวก']],
+bio:[['BIO1','หัวข้อ ประวัติผู้จัดทำ',/ประวัติ/,'error','ใส่หัวข้อประวัติผู้จัดทำ'],['BIO2','ข้อมูลส่วนตัว (ชื่อ/เกิด/อายุ/ที่อยู่)',/ชื่อ-นามสกุล.*(เกิด).*อายุ.*ที่อยู่/s,'error','ใส่ข้อมูลส่วนตัวให้ครบ'],['BIO3','ประวัติการศึกษา',/ประวัติการศึกษา/,'error','ใส่ประวัติการศึกษา']]};
+const PLACE=[[/[.…‥]{4,}/,'มีจุดไข่ปลา "......" ที่ยังไม่ได้แทนด้วยข้อมูลจริง'],[/ย่อหน้า(ที่|แรก|สอง)|ชื่อคนที่|นาสกุล|0{8,}|25XX|\(ตัวอย่าง\)|ต่อไปเรื่อย|ใคร\s?จำนวนกี่คน|อยากขอบคุณใครอีก|ทำแบบนี้ต่อไป|ชื่อชิ้นงาน|ชื่อโปรเจ็ค|\(คนที่|\(ภาษาไทย\)|\(ภาษาอังกฤษ\)|ตารางที่\s?\d\.X|ภาพที่\s?\d\.X|รายละเอียดที่จำมาใส่|อื่น\s?ๆ\s?ถ้ามี/,'ยังมีข้อความตัวอย่างของแม่แบบ'],[/\((สำหรับ|ต้องมี|อธิบาย|บอก|เป็นส่วน|แสดงขั้นตอน|พยายาม|สามารถ)/,'ยังมีคำแนะนำในวงเล็บของแม่แบบ'],[/\t[xX]\s*$/,'เลขหน้ายังเป็น x/X']];
+const TH=s=>s.replace(/[๐-๙]/g,c=>'๐๑๒๓๔๕๖๗๘๙'.indexOf(c));
+const NS=s=>s.replace(/[\s\u00a0\u200b]+/g,'');
+const q=(el,t)=>Array.from(el.getElementsByTagName(t));
+const attr=(el,a)=>el&&el.getAttribute(a);
+function parseStyles(x){const m={},d={font:null,sz:null};if(!x)return{m,d};const dd=x.getElementsByTagName('w:rPrDefault')[0];if(dd){const r=rp(dd);d.font=r.font;d.sz=r.sz;d.fontCs=r.fontCs;d.szCs=r.szCs}
+q(x,'w:style').forEach(s=>{if(attr(s,'w:default')==='1'&&attr(s,'w:type')==='paragraph')m.__def=attr(s,'w:styleId');const b=s.getElementsByTagName('w:basedOn')[0];m[attr(s,'w:styleId')]={base:b&&attr(b,'w:val'),...rp(s)}});return{m,d}}
+function rp(el){const r=el.getElementsByTagName('w:rPr')[0]||{getElementsByTagName:()=>[]};const f=r.getElementsByTagName('w:rFonts')[0],o={};
+if(f){o.font=attr(f,'w:ascii')||attr(f,'w:hAnsi');o.fontCs=attr(f,'w:cs')}
+const sz=r.getElementsByTagName('w:sz')[0],sc=r.getElementsByTagName('w:szCs')[0];if(sz)o.sz=+attr(sz,'w:val')/2;if(sc)o.szCs=+attr(sc,'w:val')/2;
+const b=r.getElementsByTagName('w:b')[0],bc=r.getElementsByTagName('w:bCs')[0];if(b)o.b=attr(b,'w:val')!=='0'&&attr(b,'w:val')!=='false';if(bc)o.bCs=attr(bc,'w:val')!=='0'&&attr(bc,'w:val')!=='false';return o}
+function styleProp(S,id,k){for(let i=0;id&&S.m[id]&&i<10;i++){if(S.m[id][k]!==undefined)return S.m[id][k];id=S.m[id].base}}
+function runInfo(run,pst,S){const o=rp(run),cs=run.getElementsByTagName('w:rStyle')[0],rs=cs&&attr(cs,'w:val');
+const g=k=>o[k]!==undefined?o[k]:(styleProp(S,rs,k)!==undefined?styleProp(S,rs,k):(styleProp(S,pst,k)!==undefined?styleProp(S,pst,k):(styleProp(S,S.m.__def||'Normal',k)!==undefined?styleProp(S,S.m.__def||'Normal',k):S.d[k])));
+return{font:g('font'),fontCs:g('fontCs'),sz:g('sz'),szCs:g('szCs'),b:g('b'),bCs:g('bCs')}}
+function textOf(r){let t='';for(const n of Array.from(r.childNodes)){if(n.nodeName==='w:t')t+=n.textContent;else if(n.nodeName==='w:tab')t+='\t';else if(n.nodeName==='w:br')t+=' '}return t}
+function inFallback(n){for(;n;n=n.parentNode)if(n.nodeName==='mc:Fallback')return true;return false}
+function closest(n,t){for(n=n.parentNode;n;n=n.parentNode)if(n.nodeName===t)return n;return null}
+function parseDocx(zip,DP){return Promise.all([zip.file('word/document.xml').async('string'),zip.file('word/styles.xml')?zip.file('word/styles.xml').async('string'):''].concat(Object.keys(zip.files).filter(f=>/word\/(header|footer)\d*\.xml/.test(f)).map(f=>zip.file(f).async('string')))).then(([d,s,...hf])=>{
+const doc=new DP().parseFromString(d,'text/xml'),S=parseStyles(s?new DP().parseFromString(s,'text/xml'):null);
+const lines=[],rows=new Map(),runs=[];let lastTc=null;
+q(doc,'w:p').forEach(p=>{if(inFallback(p))return;const ps=p.getElementsByTagName('w:pStyle')[0],pst=ps&&attr(ps,'w:val');let t='';
+q(p,'w:r').forEach(r=>{const x=textOf(r);if(!x)return;t+=x;runs.push({t:x,...runInfo(r,pst,S),line:null})});
+const tc=closest(p,'w:tc');t=TH(t);
+if(tc){const tr=tc.parentNode;let o=rows.get(tr);if(!o){o={t:'',tbl:1};rows.set(tr,o);lines.push(o)}o.t+=(o.last&&o.last!==tc?'\t':o.t?' ':'')+t;o.last=tc}else lines.push({t})});
+const sects=q(doc,'w:sectPr').map(s=>{const g=s.getElementsByTagName('w:pgMar')[0],z=s.getElementsByTagName('w:pgSz')[0];return g&&{l:+attr(g,'w:left'),t:+attr(g,'w:top'),r:+attr(g,'w:right'),b:+attr(g,'w:bottom'),w:z&&+attr(z,'w:w'),h:z&&+attr(z,'w:h')}}).filter(Boolean);
+return{lines:lines.map(l=>({t:l.t.trim()})),runs,sects,tables:q(doc,'w:tbl').length,images:q(doc,'w:drawing').length,hf:hf.join('')}})}
+function section(L,s,e){let on=false,o=[];for(const l of L){const n=NS(l);if(!on&&s.test(n)){on=true;continue}if(on&&e&&e.test(n))break;if(on&&n)o.push(l)}return o}
+function check(P,name,ctx){const out=[],add=(code,sev,message,fix)=>out.push({code,severity:sev,message,fix:fix||''});
+const key=ctx.docKey,cover=key==='cover',L=P.lines.map(l=>l.t).filter(Boolean),N=L.map(NS),all=N.join('\n');
+// filename
+if(detectDoc(name)===null)add('NAME1','error','ชื่อไฟล์ "'+name+'" ไม่ตรงรูปแบบ','ตั้งชื่อตามตาราง เช่น 07_บทที่_1.docx (ไม่มีช่องว่าง/วงเล็บ/คำว่า copy)');else add('NAME1','pass','ชื่อไฟล์ถูกต้อง');
+// page + margins
+const A4=P.sects.every(s=>Math.abs(s.w-11906)<80&&Math.abs(s.h-16838)<80);add('PAGE1',A4?'pass':'error',A4?'กระดาษ A4':'ขนาดกระดาษไม่ใช่ A4','เค้าโครง > ขนาด > A4');
+const bad=(f,ok)=>P.sects.map((s,i)=>!ok(s[f])?'ส่วนที่ '+(i+1)+' ('+(s[f]/567).toFixed(2)+' ซม.)':null).filter(Boolean);
+const w=(v,x)=>Math.abs(v-x)<35;
+if(!cover){const e=bad('l',v=>w(v,2160));add('MARG1',e.length?'error':'pass',e.length?'ขอบซ้ายไม่ใช่ 1.5 นิ้ว (3.81 ซม.): '+e.join(', '):'ขอบซ้าย 1.5 นิ้ว','เค้าโครง > ระยะขอบ > กำหนดเอง ซ้าย 3.81 ซม.');
+const tp=bad('t',v=>w(v,1440)||w(v,2160)||w(v,2880)),o=[...bad('r',v=>w(v,1440)),...bad('b',v=>w(v,1440))];const m2=[...tp.map(x=>'บน '+x),...o];add('MARG2',m2.length?'error':'pass',m2.length?'ขอบบน/ล่าง/ขวาไม่ใช่ 1 นิ้ว (2.54 ซม.): '+m2.join(', '):'ขอบบน ล่าง ขวา ถูกต้อง','ตั้งขอบบน ล่าง ขวา = 2.54 ซม. (ขอบบนหน้าแรกของบทใช้ 3.81/5.08 ซม.ตามแม่แบบได้)')}
+// fonts and sizes
+const ok=/^TH ?Sarabun ?(PSK|New)$/i;const fonts={},sizes={};let boldFail=0;
+P.runs.forEach(r=>{if(!/[A-Za-zก-๙]/.test(r.t))return;const th=/[ก-๙]/.test(r.t),f=(th?r.fontCs||r.font:r.font),s=(th?r.szCs||r.sz:r.sz)||0;if(f&&!ok.test(f.replace(/\s+/g,' ')))fonts[f]=(fonts[f]||0)+r.t.length;if(s&&(cover?s<16:s!==16&&s!==18))sizes[s]=(sizes[s]||0)+r.t.length});
+const fk=Object.keys(fonts);add('FONT1',fk.length?'error':'pass',fk.length?'พบฟอนต์ที่ไม่ใช่ TH Sarabun: '+fk.map(k=>k+' ('+fonts[k]+' ตัวอักษร)').join(', '):'ฟอนต์ TH Sarabun ทั้งไฟล์','เลือกทั้งไฟล์ (Ctrl+A) แล้วเปลี่ยนเป็น TH Sarabun PSK หรือ TH Sarabun New');
+const sk=Object.keys(sizes);add('SIZE1',sk.length?'warning':'pass',sk.length?'พบขนาดอักษรนอกมาตรฐาน (ใช้ 16 เนื้อหา/18 หัวข้อบท): '+sk.map(k=>k+'pt ('+sizes[k]+' ตัวอักษร)').join(', '):'ขนาดอักษรถูกต้อง','เนื้อหาทั่วไป 16 pt, หัวข้อบท 18 pt ตัวหนา ตารางและคำบรรยายก็ใช้ 16 pt');
+if(/^ch\d$/.test(key)){const h=P.runs.find(r=>/^\s*บทที่/.test(r.t));if(h){const s=h.szCs||h.sz,b=h.bCs!==undefined?h.bCs:h.b;const g=s===18&&b;add('HEAD1',g?'pass':'error',g?'หัวข้อบทขนาด 18 ตัวหนา':'หัวข้อ "บทที่ N" ต้องขนาด 18 pt ตัวหนา (พบ '+s+'pt'+(b?'':' ไม่หนา')+')','เลือกบรรทัด "บทที่ N" แล้วตั้ง 18 pt + ตัวหนา')}else add('HEAD1','error','ไม่พบหัวข้อ "บทที่ '+key[2]+'"','พิมพ์หัวข้อ บทที่ '+key[2]+' ไว้ต้นไฟล์')}
+// template leftovers
+if(key!=='toc'||true){const hit={};L.forEach(t=>{if(key==='toc'&&/^\d+(\.\d+)*\s*$/.test(t))return;PLACE.forEach(([r,m])=>{if(r.test(t))(hit[m]=hit[m]||[]).push(t.slice(0,50))})});
+Object.keys(hit).forEach(m=>add('TEMP1','error',m+' '+hit[m].length+' จุด เช่น "'+hit[m][0]+'"','แก้หรือลบข้อความตัวอย่างทั้งหมดก่อนพิมพ์'));
+if(!Object.keys(hit).length)add('TEMP1','pass','ไม่พบข้อความตัวอย่างค้างอยู่');
+if(key!=='toc'){const em=L.filter(t=>/^\d+(\.\d+)*\)?\s*$/.test(t));if(em.length)add('TEMP2','error','พบหัวข้อ/ข้อที่ยังไม่มีเนื้อหา '+em.length+' จุด เช่น "'+em[0]+'"','เติมเนื้อหาหรือลบข้อที่ไม่ใช้')}}
+// required headings
+(REQ[key]||[]).forEach(([c,l,re,sev,fix,min])=>{const m=min?(all.match(re)||[]).length>=min:re.test(all);add(c,m?'pass':sev,m?l:'ไม่พบ: '+l,fix)});
+// cross-check with database
+const mem=ctx.members||[],need=['cover','copyright','cert','abstract','ack','bio'];
+if(need.includes(key)&&mem.length){const miss=mem.filter(m=>!all.includes(NS(m.full_name.replace(/^(นางสาว|นาย|นาง)/,''))));add('XREF1',miss.length?'error':'pass',miss.length?'ไม่พบชื่อสมาชิก: '+miss.map(m=>m.full_name).join(', '):'ชื่อสมาชิกตรงกับฐานข้อมูล','ชื่อ-นามสกุลต้องตรงกับที่ลงทะเบียน')}
+if(key==='cert'&&mem.length){const miss=mem.filter(m=>!all.includes(m.student_id));add('XREF2',miss.length?'error':'pass',miss.length?'ไม่พบรหัสนักศึกษา: '+miss.map(m=>m.student_id).join(', '):'รหัสนักศึกษาครบ','ใส่รหัสนักศึกษา 11 หลักของสมาชิกทุกคน')}
+if(ctx.title&&['cover','copyright','cert','abstract','ack','ch4','ch5','bio'].includes(key)){const t=NS(ctx.title),g=all.includes(t);add('XREF3',g?'pass':'warning',g?'ชื่อโครงงานตรงกับที่ลงทะเบียน':'ไม่พบชื่อโครงงานที่ลงทะเบียนไว้ ("'+ctx.title.slice(0,40)+'")','ชื่อโครงงานต้องตรงกันทุกไฟล์')}
+// counts / captions
+if(key==='ch1'){const o=section(L,/วัตถุประสงค์/,/สมมติฐาน|ขอบเขต/).length,b=section(L,/ประโยชน์ที่คาดว่าจะได้รับ/,/นิยามศัพท์/).length;if(o)add('C1N1',b>=o?'pass':'error',b>=o?'ประโยชน์ที่ได้รับ ('+b+') ≥ วัตถุประสงค์ ('+o+')':'ประโยชน์ที่ได้รับ ('+b+' ข้อ) ต้องไม่น้อยกว่าวัตถุประสงค์ ('+o+' ข้อ)','เพิ่มข้อประโยชน์ให้ครบตามจำนวนวัตถุประสงค์')}
+if(key==='ch2'){const r=section(L,/งานวิจัยที่เกี่ยวข้อง/).filter(t=>/^\d+\.\d+\.\d+/.test(NS(t))||/\(?25\d\d\)?/.test(t)),yy=r.map(t=>(t.match(/25\d\d/)||[])[0]).filter(Boolean).map(Number),min=new Date().getFullYear()+543-10,old=yy.filter(y=>y<min);
+add('C2N1',r.length>=5?'pass':'error',r.length>=5?'งานวิจัยที่เกี่ยวข้อง '+r.length+' เรื่อง':'งานวิจัยที่เกี่ยวข้องพบ '+r.length+' เรื่อง (ต้องอย่างน้อย 5)','เพิ่มงานวิจัยในรูป 2.x.1, 2.x.2 ... พร้อมปี พ.ศ.');
+add('C2N2',old.length||!yy.length&&r.length?'error':'pass',old.length?'งานวิจัยเก่ากว่า 10 ปี (ก่อน พ.ศ. '+min+'): ปี '+old.join(', '):yy.length?'งานวิจัยอยู่ในช่วง 10 ปี':'ไม่พบปี พ.ศ. ในงานวิจัย','ใช้งานวิจัยย้อนหลังไม่เกิน 10 ปี และระบุปี พ.ศ. ในวงเล็บ')}
+if(/^ch[2-4]$/.test(key)){const n=key[2],cap={t:[],f:[]};L.forEach(t=>{const m=NS(t).match(/^(ตารางที่|ภาพที่)(\d+)\.(\d+)/);if(m)cap[m[1]==='ภาพที่'?'f':'t'].push([+m[2],+m[3]])});
+[['t','ตาราง',P.tables],['f','ภาพ',P.images]].forEach(([k,l,cnt])=>{const c=cap[k],badSeq=c.some((x,i)=>x[0]!=n||x[1]!==i+1);
+if(c.length||cnt&&k==='t'&&key!=='ch3'){add('CAP'+k,!badSeq&&(c.length||!cnt)?'pass':'warning',!c.length?'มี'+l+' แต่ไม่พบคำบรรยาย "'+(k==='t'?'ตารางที่':'ภาพที่')+' '+n+'.1"':badSeq?'เลขคำบรรยาย'+l+'ต้องเป็น '+n+'.1, '+n+'.2 ... เรียงต่อกัน (พบ '+c.map(x=>x.join('.')).join(', ')+')':'คำบรรยาย'+l+'เรียงลำดับถูกต้อง ('+c.length+')','ใส่คำบรรยาย ตารางที่ '+n+'.1 (เหนือตาราง) / ภาพที่ '+n+'.1 (ใต้ภาพ)')}});
+if(key==='ch4'&&!P.images)add('IMG1','warning','ไม่พบรูปภาพหน้าจอผลงานในบทที่ 4','ใส่ภาพผลงาน/หน้าจอพร้อมคำบรรยาย ภาพที่ 4.x')}
+if(key==='bib'){const e=L.filter(t=>/\(?(25|20)\d\d\)?/.test(t)).length;add('BIB2',e>=5?'pass':'warning',e>=5?'พบรายการอ้างอิง '+e+' รายการ':'พบรายการอ้างอิงที่มีปี '+e+' รายการ (ควรมีอย่างน้อย 5)','รูปแบบ: ชื่อ. (ปี). ชื่อเรื่อง. สำนักพิมพ์.');}
+if(/^(ch[1-5]|bib)$/.test(key)){const pg=/PAGE/.test(P.hf);add('PGNO1',pg?'pass':'warning',pg?'มีเลขหน้า':'ไม่พบเลขหน้าในส่วนหัว/ท้ายกระดาษ','แทรก > เลขหน้า')}
+return out}
+
+
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let S=null,OV=null,view='main';try{S=JSON.parse(sessionStorage.getItem('pjc'))}catch(e){}
+async function rpc(fn,a){const r=await fetch(SB+'/rest/v1/rpc/'+fn,{method:'POST',headers:{apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify(a)}),j=await r.json();if(!r.ok){if(/หมดเวลา/.test(j.message||'')){S=null;sessionStorage.removeItem('pjc')}throw new Error(j.message||'เกิดข้อผิดพลาด')}return j}
+const T=()=>S.token,badge=(e,w)=>e?`<span class="b e">❌ ${e} ต้องแก้</span>`:w?`<span class="b w">⚠️ ${w} ควรตรวจ</span>`:`<span class="b p">✅ ผ่าน</span>`;
+const KB={};'ๅ/-ภถุึคตจ'.split('').forEach((c,i)=>KB[c]='1234567890'[i]);[['ๆ','q'],['ไ','w'],['ำ','e'],['พ','r'],['ะ','t'],['ั','y'],['ี','u'],['ร','i'],['น','o'],['ย','p'],['บ','['],['ล',']'],['ฟ','a'],['ห','s'],['ก','d'],['ด','f'],['เ','g'],['้','h'],['่','j'],['า','k'],['ส','l'],['ว',';'],['ง',"'"],['ผ','z'],['ป','x'],['แ','c'],['อ','v'],['ิ','b'],['ื','n'],['ท','m']].forEach(([a,b])=>KB[a]=b);
+const fixKb=v=>/[ก-๙]/.test(v)?v.replace(/[๐-๙]/g,c=>'๐๑๒๓๔๕๖๗๘๙'.indexOf(c)).split('').map(c=>KB[c]||c).join(''):v;
+function loginView(err){$('#who').innerHTML='';$('#app').innerHTML=`<div class="card" style="max-width:420px;margin:30px auto"><h2>เข้าสู่ระบบ</h2><label>รหัสนักศึกษา</label><input id="u" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false"><label>รหัสผ่าน</label><input id="p" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" style="-webkit-text-security:disc;text-security:disc"><div id="kp" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:0 0 10px">${'1234567890'.split('').map(d=>`<button type="button" class="g" data-k="${d}">${d}</button>`).join('')}<button type="button" class="g" data-k="b">⌫</button><button type="button" class="g" data-k="c" style="grid-column:span 2">ล้าง</button></div><div class="m" style="font-size:14px;margin:-4px 0 8px">แป้นตัวเลขบนหน้าจอ: คลิกใส่รหัสผ่านได้โดยไม่ต้องใช้คีย์บอร์ด</div><label style="font-size:15px;display:block;margin:-4px 0 10px"><input type="checkbox" id="sp" style="width:auto;margin:0 6px 0 0" onchange="$('#p').style.cssText=this.checked?'':'-webkit-text-security:disc;text-security:disc'">แสดงรหัสผ่าน</label><button id="go" style="width:100%">เข้าสู่ระบบ</button>${err?`<div class="msg er">${esc(err)}<br><small>ตรวจสอบว่าคีย์บอร์ดเป็นภาษาอังกฤษ (กด Alt+~ หรือ Caps Lock) แล้วลองใหม่</small></div>`:''}<p class="m" style="font-size:15px">ระบบนี้ช่วยตรวจรูปเล่มเบื้องต้นก่อนส่งผู้ตรวจจริง ไฟล์ของคุณถูกตรวจในเครื่อง ไม่ถูกอัปโหลด เก็บเฉพาะผลตรวจ</p></div>`;
+document.querySelectorAll('#kp button').forEach(b=>b.onclick=()=>{const p=$('#p'),k=b.dataset.k;p.value=k==='b'?p.value.slice(0,-1):k==='c'?'':p.value+k;p.focus()});const go=async()=>{try{['#u','#p'].forEach(i=>{$(i).value=fixKb($(i).value)});S=await rpc('pjc_login',{sid:$('#u').value.trim(),pw:$('#p').value.trim()});sessionStorage.setItem('pjc',JSON.stringify(S));load()}catch(e){loginView(e.message)}};$('#go').onclick=go;$('#p').addEventListener('keydown',e=>{if(e.key==='Enter')go()})}
+async function load(){if(!S)return loginView();try{OV=await rpc('pjc_overview',{tok:T()})}catch(e){return loginView(e.message)}
+$('#who').innerHTML=`${esc(S.full_name)} <button class="g" style="color:#fff;border-color:#fff8" onclick="pw()">เปลี่ยนรหัสผ่าน</button> <button onclick="out()">ออก</button>`;S.role==='teacher'?teacher():student()}
+window.out=()=>{S=null;sessionStorage.removeItem('pjc');loginView()};
+window.pw=async()=>{const o=prompt('รหัสผ่านเดิม');if(o==null)return;const n=prompt('รหัสผ่านใหม่ (อย่างน้อย 8 ตัว)');if(n==null)return;try{await rpc('pjc_change_password',{tok:T(),old_pw:o,new_pw:n});alert('เปลี่ยนรหัสผ่านแล้ว')}catch(e){alert(e.message)}};
+function docTable(p,full){const best={};(p.docs||[]).forEach(d=>(best[d.doc_key]=best[d.doc_key]||[]).push(d));
+return `<table><tr><th>เอกสาร</th><th>ไฟล์ล่าสุด</th><th>ผลตรวจ</th></tr>`+REQUIRED.map(k=>{const ds=best[k];return `<tr><td>${DOCS[k]}</td><td>${ds?ds.map(d=>`<a href="#" onclick="show('${d.run_id}','${esc(d.file_name)}');return false">${esc(d.file_name)}</a>`).join('<br>'):'<span class="m">ยังไม่ได้ตรวจ</span>'}</td><td>${ds?ds.map(d=>badge(d.errors,d.warnings)).join('<br>'):'<span class="b m">— ยังไม่มีไฟล์</span>'}</td></tr>`}).join('')+`</table>`}
+function student(){const mine=OV.projects[0],mem=mine?mine.members.map(m=>m.student_id):[S.student_id],others=OV.students.filter(s=>s.student_id!==S.student_id&&(!s.project_id||(mine&&s.project_id===mine.id)));
+const sel=i=>`<select id="m${i}" style="width:100%;margin-bottom:10px"><option value="">— ไม่มี —</option>${others.map(s=>`<option value="${s.student_id}" ${mem.filter(x=>x!==S.student_id)[i]===s.student_id?'selected':''}>${s.student_id} ${esc(s.full_name)}</option>`).join('')}</select>`;
+$('#app').innerHTML=`<div class="card"><h2>1) ข้อมูลโครงงาน</h2><div class="row"><div><label>ชื่อโครงงาน (ไทย)</label><input id="tth" value="${esc(mine?.title_th)}"></div><div><label>ชื่อโครงงาน (อังกฤษ)</label><input id="ten" value="${esc(mine?.title_en)}"></div></div><label>ครูที่ปรึกษา</label><input id="adv" value="${esc(mine?.advisor)}"><div class="row"><div><label>สมาชิกคนที่ 2</label>${sel(0)}</div><div><label>สมาชิกคนที่ 3</label>${sel(1)}</div></div><button id="sv">บันทึกข้อมูลโครงงาน</button> <span id="svm" class="m"></span></div>
+<div class="card"><h2>2) ตรวจไฟล์ .docx</h2>${mine?`<div class="drop" id="dz">ลากไฟล์ Word (.docx) มาวาง หรือ <button class="g" onclick="$('#fi').click()">เลือกไฟล์</button> (ตรวจได้ทีละหลายไฟล์ ตั้งชื่อตาม 01_หน้าปก.docx ... 10_ประวัติคณะผู้จัดทำ.docx)<input id="fi" type="file" accept=".docx" multiple hidden></div><div id="res"></div>`:'<p class="m">บันทึกข้อมูลโครงงานก่อน จึงจะตรวจไฟล์ได้</p>'}</div>
+${mine?`<div class="card"><h2>3) ความคืบหน้าทั้งเล่ม</h2>${prog(mine)}${docTable(mine)}</div>`:''}<div id="dt"></div>`;
+$('#sv').onclick=async()=>{try{await rpc('pjc_save_project',{tok:T(),t_th:$('#tth').value,t_en:$('#ten').value,adv:$('#adv').value,members:[$('#m0').value,$('#m1').value].filter(Boolean)});load()}catch(e){$('#svm').innerHTML=`<span class="e">${esc(e.message)}</span>`}};
+if(mine){const dz=$('#dz'),fi=$('#fi');fi.onchange=()=>runFiles(fi.files,mine);dz.ondragover=e=>{e.preventDefault();dz.classList.add('on')};dz.ondragleave=()=>dz.classList.remove('on');dz.ondrop=e=>{e.preventDefault();dz.classList.remove('on');runFiles(e.dataTransfer.files,mine)}}}
+function prog(p){const done=new Set((p.docs||[]).filter(d=>!d.errors).map(d=>d.doc_key)),n=REQUIRED.filter(k=>done.has(k)).length;return `<p><span class="big">${n}/${REQUIRED.length}</span> ไฟล์ผ่านเกณฑ์ (ไม่มีข้อผิดพลาด) ${n===REQUIRED.length?'· 🎉 พร้อมพิมพ์ส่งผู้ตรวจจริง':''}</p>`}
+async function runFiles(files,p){const box=$('#res');box.innerHTML='';for(const f of files){const d=document.createElement('div');d.innerHTML=`<p class="m">กำลังตรวจ ${esc(f.name)} ...</p>`;box.appendChild(d);try{
+if(!/\.docx$/i.test(f.name))throw new Error('รองรับเฉพาะ .docx (ถ้าเป็น .doc ให้เปิดใน Word แล้วบันทึกเป็น .docx)');
+const key=detectDoc(f.name)||guess(f.name);if(!key)throw new Error('ไม่รู้ว่าเป็นเอกสารส่วนไหน กรุณาเปลี่ยนชื่อไฟล์ตามตาราง เช่น 07_บทที่_1.docx');
+const zip=await JSZip.loadAsync(await f.arrayBuffer()),P=await parseDocx(zip,DOMParser),items=check(P,f.name,{docKey:key,members:p.members,title:p.title_th});
+await rpc('pjc_save_run',{tok:T(),p_doc:key,p_file:f.name,p_items:items});d.innerHTML=`<div class="card" style="margin:8px 0"><b>${esc(f.name)}</b> → ${DOCS[key]} ${badge(items.filter(i=>i.severity==='error').length,items.filter(i=>i.severity==='warning').length)}${itemsHtml(items)}</div>`}catch(e){d.innerHTML=`<div class="msg er">${esc(f.name)}: ${esc(e.message)}</div>`}}
+OV=await rpc('pjc_overview',{tok:T()});const m=OV.projects[0];document.querySelectorAll('.card')[2].innerHTML=`<h2>3) ความคืบหน้าทั้งเล่ม</h2>${prog(m)}${docTable(m)}`}
+function guess(n){n=n.normalize('NFC');const m=[[/หน้าปก/,'cover'],[/ลิขสิทธิ์/,'copyright'],[/ใบรับรอง/,'cert'],[/บทคัดย่อ/,'abstract'],[/กิตติกรรม/,'ack'],[/สารบัญ/,'toc'],[/บรรณานุกรม/,'bib'],[/ภาคผนวก/,'appendix'],[/ประวัติ/,'bio']].find(x=>x[0].test(n));if(m)return m[1];const c=n.match(/บทที่\s*_?([1-5])/);return c?'ch'+c[1]:null}
+function itemsHtml(items){const o={error:'ต้องแก้ไข',warning:'ควรตรวจสอบ',pass:'ผ่านแล้ว'};return ['error','warning','pass'].map(s=>{const a=items.filter(i=>i.severity===s);return a.length?`<h3 class="${s[0]}" style="margin:12px 0 2px">${s==='error'?'❌':s==='warning'?'⚠️':'✅'} ${o[s]} (${a.length})</h3>`+a.map(i=>`<div class="it ${s}">${esc(i.message)}${i.fix&&s!=='pass'?`<div class="fix">💡 วิธีแก้: ${esc(i.fix)}</div>`:''}</div>`).join(''):''}).join('')}
+window.show=async(id,name)=>{try{const it=await rpc('pjc_run_items',{tok:T(),p_run:id});$('#dt').innerHTML=`<div class="card"><h2>ผลตรวจ: ${esc(name)}</h2>${itemsHtml(it)}</div>`;$('#dt').scrollIntoView({behavior:'smooth'})}catch(e){alert(e.message)}};
+function teacher(){const P=OV.projects,no=OV.students.filter(s=>!s.project_id);$('#app').innerHTML=`<div class="card"><h2>ภาพรวมทุกโครงงาน (${P.length})</h2>${P.map(p=>`<div style="margin-bottom:18px"><b>${esc(p.title_th)}</b><div class="m">${p.members.map(m=>m.student_id+' '+esc(m.full_name)).join(' · ')}</div>${prog(p)}${docTable(p)}</div>`).join('')||'<p class="m">ยังไม่มีโครงงาน</p>'}</div><div id="dt"></div>
+<div class="card"><h2>นักศึกษาที่ยังไม่มีโครงงาน (${no.length})</h2><table>${no.map(s=>`<tr><td>${s.student_id}</td><td>${esc(s.full_name)}</td><td><button class="g" onclick="rs('${s.student_id}')">รีเซ็ตรหัสผ่าน</button></td></tr>`).join('')}</table></div>`}
+window.rs=async id=>{if(confirm('รีเซ็ตรหัสผ่าน '+id+' เป็นรหัสเริ่มต้น?'))try{await rpc('pjc_reset_password',{tok:T(),sid:id});alert('รีเซ็ตแล้ว')}catch(e){alert(e.message)}};
+load();
+</script></body></html>
